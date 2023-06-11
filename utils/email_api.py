@@ -19,9 +19,9 @@ SMTP_USERNAME: str = os.environ["SMTP_USERNAME"]
 if SMTP_USERNAME is None:
     raise ValueError("SMTP_USERNAME not found in environment variables")
 
-SMTP_PASSWORD: str = os.environ["SMTP_PASSWORD"]
-if SMTP_PASSWORD is None:
-    raise ValueError("SMTP_PASSWORD not found in environment variables")
+APP_PASSWORD: str = os.environ["APP_PASSWORD"]
+if APP_PASSWORD is None:
+    raise ValueError("APP_PASSWORD not found in environment variables")
 
 
 class Email:
@@ -38,7 +38,24 @@ class Email:
         self.default_sender = EMAILS["RAMON_EMAIL"]
         self.smtp_server = SMTP_SERVER
         self.smtp_username = SMTP_USERNAME
-        self.smtp_password = SMTP_PASSWORD
+        self.app_password = APP_PASSWORD
+
+    def send_email_without_attachment(
+        self,
+        receiver: List[str],
+        subject: str,
+        cc_emails: Optional[List[str]] = None,
+    ):
+
+        self.message["From"] = self.default_sender
+        self.message["To"] = ", ".join(receiver)
+        self.message["Subject"] = subject
+
+        if cc_emails:
+            self.message["Cc"] = ", ".join(cc_emails)
+
+        self.message.attach(MIMEText("This is a test email", "html"))
+        self.send_email(receiver=receiver)
 
     def send_email_with_attachment(
         self,
@@ -47,7 +64,7 @@ class Email:
         report_name: str,
         attachment_df: pd.DataFrame,
         cc_emails: Optional[List[str]] = None,
-    ):
+    ) -> None:
         """
         Function used to send an email with attachment.
 
@@ -133,7 +150,7 @@ class Email:
         """
         with smtplib.SMTP(self.smtp_server, 587) as server:
             server.starttls()
-            server.login(self.smtp_username, self.smtp_password)
+            server.login(self.smtp_username, self.app_password)
             failed_emails = server.sendmail(
                 self.default_sender, receiver, self.message.as_string()
             )
