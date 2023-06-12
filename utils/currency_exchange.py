@@ -25,6 +25,32 @@ class CurrencyExchange:
         self.default_currency = base_currency
         self.currency_exchange = CurrencyConverter(currency_file=ECB_URL)
 
+    def _get_dataframe(self) -> pd.DataFrame:
+        """_summary_
+
+        Returns:
+            pd.DataFrame: Last updated Dataframe from European Central Bank
+        """
+
+        file_path, _ = urlretrieve(url=ECB_URL)
+        data = pd.read_csv(file_path, compression="zip")
+        data.pop(data.columns[-1])
+
+        return data
+
+    def convert_data_to_currency(self, target_currency: str) -> pd.DataFrame:
+        """
+        This function will convert the Base Data file from "EUR" currency exchange rates
+        into the desired currency
+
+        Args:
+            target_currency (str): Currency to convert the data to.
+                Examples are "USD", "AUD"
+
+        Returns:
+            pd.DataFrame: Converted DataFrame
+        """
+
     def get_available_currency_rates(self) -> list:
         """
         Function to get all available currencies
@@ -33,11 +59,10 @@ class CurrencyExchange:
             list: List of all avalulable currencies
         """
 
-        file_path, _ = urlretrieve(url=ECB_URL)
-        data = pd.read_csv(file_path, compression="zip")
+        data = self._get_dataframe()
         available_currencies = [
             currency if len(currency) == 3 else "" for currency in data.columns
-        ][1:-1]
+        ][1:]
 
         return available_currencies
 
@@ -60,4 +85,6 @@ class CurrencyExchange:
 
 currency_exchange = CurrencyExchange()
 
-currency_exchange.get_available_currency_rates()
+dataframe = currency_exchange._get_dataframe()
+
+dataframe.to_csv("Test_data.csv", index=False)
