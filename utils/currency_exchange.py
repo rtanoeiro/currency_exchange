@@ -3,6 +3,7 @@
 from urllib.request import urlretrieve
 
 import datetime
+import matplotlib.pyplot as plt
 import pandas as pd
 
 from dateutil.relativedelta import relativedelta
@@ -40,6 +41,7 @@ class CurrencyExchange:
         self.currency_exchange = CurrencyConverter(currency_file=ECB_URL)
         self.dataframe = self._get_dataframe()
         self.convert_data_to_currency()
+        self.dataframe.to_csv("final_dataframe.csv", index=True)
 
     def _get_dataframe(self) -> pd.DataFrame:
         """
@@ -148,6 +150,19 @@ class CurrencyExchange:
             period_amount=period_amount, period_timeframe=period_timeframe
         )
 
+        fig, ax = plt.subplots()
+        fig.set_figheight(5)
+        fig.set_figwidth(7)
+        ax.set_title("Exchange Rate from selected currencies")
+
+        for currency in self.currencies_to_watch:
+            ax.plot(filtered_dataframe["Date"], filtered_dataframe[currency])
+            ax.set_xlabel(xlabel="Date")
+            ax.set_ylabel(ylabel="1 AUD Rate")
+
+        ax.legend(labels=self.currencies_to_watch)
+        fig.savefig(f"{'_'.join(self.currencies_to_watch)}.png", dpi=1000)
+
     def filter_period(
         self,
         period_amount: Optional[int] = 1,
@@ -172,7 +187,9 @@ class CurrencyExchange:
             initial_day = period_last_day - relativedelta(days=period_amount)
 
         filtered_dataframe = self.dataframe.reset_index()
-        filtered_dataframe["Date"] = pd.to_datetime(filtered_dataframe["Date"])
+        filtered_dataframe["Date"] = pd.to_datetime(
+            filtered_dataframe["Date"], format="%Y-%m-%d"
+        )
 
         filtered_dataframe = filtered_dataframe[
             (filtered_dataframe["Date"] >= initial_day)
@@ -182,8 +199,8 @@ class CurrencyExchange:
         return filtered_dataframe
 
 
-cr = CurrencyExchange(
-    currencies_to_watch=["BRL", "EUR", "GBP"], base_currency_to_use="AUD"
-)
+cr = CurrencyExchange(currencies_to_watch=["EUR", "GBP"], base_currency_to_use="AUD")
+cr2 = CurrencyExchange(currencies_to_watch=["BRL"], base_currency_to_use="AUD")
 
 cr.plot_period(period_amount=3)
+cr2.plot_period(period_amount=3)
