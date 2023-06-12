@@ -14,31 +14,43 @@ class CurrencyExchange:
     available currencies, the data file will be updated based on the base currency selected
     """
 
-    def __init__(self, base_currency: str = "EUR") -> None:
+    def __init__(
+        self, currencies_to_watch: list[str], base_currency_to_use: str = "EUR"
+    ) -> None:
         """
         Construction of class function
 
         Args:
-            base_currency (str, optional): Currency to be used as base for all calculations.
-            Defaults to "EUR".
+            currencies_to_watch (list[str]): Not all currencies will be needed.
+            This list will only keep the ones we want to keep an eye on.
+            base_currency_to_use (str, optional): The currency on the Dataframe is "EUR".
+            This attribute will be used to convert the base currency of the DataFrame
+            into the desired one specified. Defaults to "EUR".
+
+            Example: If you currently have "EUR", no need to pass a value.
+            If you currently "AUD", then simply assign "AUD" to this attribute
         """
-        self.default_currency = base_currency
+
+        self.currencies_to_watch = currencies_to_watch
+        self.base_currency_to_use = base_currency_to_use
         self.currency_exchange = CurrencyConverter(currency_file=ECB_URL)
 
     def _get_dataframe(self) -> pd.DataFrame:
-        """_summary_
+        """
+        Function to get the latest DataFrame from the European Central Bank
 
         Returns:
-            pd.DataFrame: Last updated Dataframe from European Central Bank
+            pd.DataFrame: Last updated Dataframe.
         """
 
         file_path, _ = urlretrieve(url=ECB_URL)
-        data = pd.read_csv(file_path, compression="zip")
+        data = pd.read_csv(file_path, compression="zip", index_col=0)
         data.pop(data.columns[-1])
+        data.to_csv("normal_dataframe.csv", index=True)
 
         return data
 
-    def convert_data_to_currency(self, target_currency: str) -> pd.DataFrame:
+    def convert_data_to_currency(self) -> pd.DataFrame:
         """
         This function will convert the Base Data file from "EUR" currency exchange rates
         into the desired currency
@@ -50,6 +62,23 @@ class CurrencyExchange:
         Returns:
             pd.DataFrame: Converted DataFrame
         """
+
+        if self.base_currency_to_use == "EUR":
+            return self._get_dataframe()
+
+        data = self._get_dataframe()
+        data["EUR"] = 1 / data[self.base_currency_to_use]
+        data = data[self.currencies_to_watch + [self.base_currency_to_use]]
+
+        for column in data.columns:
+            if (column == self.base_currency_to_use) or (column == "EUR"):
+                pass
+            else:
+                data[column] = data[column] / data[self.base_currency_to_use]
+
+        data.pop(self.base_currency_to_use)
+
+        return data
 
     def get_available_currency_rates(self) -> list:
         """
@@ -72,19 +101,19 @@ class CurrencyExchange:
         on the default currency into the desired one
 
         Args:
-            currency (str): Currency. For a full list of currencies, use the
+            currency (str): Currency.  For a full list of currencies, use the
                 get_available_currency_rates method
             amount (float): Amount to be converted
         """
 
         amount_converted = self.currency_exchange.convert(
-            base_cur=self.default_currency, dest_cur=currency, amount=amount
+            base_cur=self.base_currency_to_use, dest_cur=currency, amount=amount
         )
         print(amount_converted)
 
 
-currency_exchange = CurrencyExchange()
+currency_exchange = CurrencyExchange(
+    currencies_to_watch=["BRL", "EUR", "GBP"], base_currency_to_use="AUD"
+)
 
-dataframe = currency_exchange._get_dataframe()
-
-dataframe.to_csv("Test_data.csv", index=False)
+currency_exchange.convert_data_to_currency()
