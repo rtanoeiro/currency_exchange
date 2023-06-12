@@ -12,6 +12,7 @@ pylint = "*"
 mypy = "*"
 black = "*"
 bandit = "*"
+types-python-dateutil = "*"
 
 [requires]
 python_version = "3.11"
