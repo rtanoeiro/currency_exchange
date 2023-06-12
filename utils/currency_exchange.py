@@ -20,7 +20,11 @@ class CurrencyExchange:
     """
 
     def __init__(
-        self, currencies_to_watch: list[str], base_currency_to_use: str = "EUR"
+        self,
+        currencies_to_watch: list[str],
+        base_currency_to_use: str = "EUR",
+        period_amount: Optional[int] = 1,
+        period_timeframe: Optional[str] = "month",
     ) -> None:
         """
         Construction of class function
@@ -39,9 +43,11 @@ class CurrencyExchange:
         self.currencies_to_watch = currencies_to_watch
         self.base_currency_to_use = base_currency_to_use
         self.currency_exchange = CurrencyConverter(currency_file=ECB_URL)
+        self.period_amount = period_amount
+        self.period_timeframe = period_timeframe
         self.dataframe = self._get_dataframe()
         self.convert_data_to_currency()
-        self.dataframe.to_csv("final_dataframe.csv", index=True)
+        self.plot_period()
 
     def _get_dataframe(self) -> pd.DataFrame:
         """
@@ -127,8 +133,6 @@ class CurrencyExchange:
 
     def plot_period(
         self,
-        period_amount: Optional[int] = 1,
-        period_timeframe: Optional[str] = "month",
     ) -> None:
         """
         Function to plot the last period of exchange rates
@@ -146,29 +150,26 @@ class CurrencyExchange:
 
         """
 
-        filtered_dataframe = self.filter_period(
-            period_amount=period_amount, period_timeframe=period_timeframe
-        )
+        filtered_dataframe = self.filter_period()
 
         fig, ax = plt.subplots()
         fig.set_figheight(5)
-        fig.set_figwidth(7)
+        fig.set_figwidth(8)
         ax.set_title("Exchange Rate from selected currencies")
 
         for currency in self.currencies_to_watch:
             ax.plot(filtered_dataframe["Date"], filtered_dataframe[currency])
             ax.set_xlabel(xlabel="Date")
-            ax.set_ylabel(ylabel="1 AUD Rate")
+            ax.set_ylabel(ylabel=f"1 {self.base_currency_to_use} Rate")
 
         ax.legend(labels=self.currencies_to_watch)
         fig.savefig(f"{'_'.join(self.currencies_to_watch)}.png", dpi=1000)
 
     def filter_period(
         self,
-        period_amount: Optional[int] = 1,
-        period_timeframe: Optional[str] = "month",
     ) -> pd.DataFrame:
-        """_summary_
+        """
+        This function will filter the dataframe to have only data on the selected period
 
         Args:
             period_amount (Optional[int], optional): _description_. Defaults to 1.
@@ -179,12 +180,12 @@ class CurrencyExchange:
         """
         period_last_day = datetime.datetime.today()
 
-        if period_timeframe == "month":
-            initial_day = period_last_day - relativedelta(months=period_amount)
-        elif period_timeframe == "year":
-            initial_day = period_last_day - relativedelta(years=period_amount)
-        elif period_timeframe == "day":
-            initial_day = period_last_day - relativedelta(days=period_amount)
+        if self.period_timeframe == "month":
+            initial_day = period_last_day - relativedelta(months=self.period_amount)
+        elif self.period_timeframe == "year":
+            initial_day = period_last_day - relativedelta(years=self.period_amount)
+        elif self.period_timeframe == "day":
+            initial_day = period_last_day - relativedelta(days=self.period_amount)
 
         filtered_dataframe = self.dataframe.reset_index()
         filtered_dataframe["Date"] = pd.to_datetime(
@@ -197,10 +198,3 @@ class CurrencyExchange:
         ]
 
         return filtered_dataframe
-
-
-cr = CurrencyExchange(currencies_to_watch=["EUR", "GBP"], base_currency_to_use="AUD")
-cr2 = CurrencyExchange(currencies_to_watch=["BRL"], base_currency_to_use="AUD")
-
-cr.plot_period(period_amount=3)
-cr2.plot_period(period_amount=3)
