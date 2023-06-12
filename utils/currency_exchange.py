@@ -4,6 +4,8 @@ from urllib.request import urlretrieve
 
 import datetime
 import pandas as pd
+
+from dateutil.relativedelta import relativedelta
 from typing import Optional
 from currency_converter import ECB_URL, CurrencyConverter
 
@@ -36,8 +38,9 @@ class CurrencyExchange:
         self.currencies_to_watch = currencies_to_watch
         self.base_currency_to_use = base_currency_to_use
         self.currency_exchange = CurrencyConverter(currency_file=ECB_URL)
+        self.dataframe = self._get_dataframe()
 
-    def _get_dataframe(self) -> pd.DataFrame:
+    def _get_dataframe(self) -> None:
         """
         Function to get the latest DataFrame from the European Central Bank
 
@@ -48,9 +51,8 @@ class CurrencyExchange:
         file_path, _ = urlretrieve(url=ECB_URL)
         data = pd.read_csv(file_path, compression="zip", index_col=0)
         data.pop(data.columns[-1])
-        data.to_csv("normal_dataframe.csv", index=True)
 
-        return data
+        self.dataframe = data
 
     def convert_data_to_currency(self) -> pd.DataFrame:
         """
@@ -68,17 +70,20 @@ class CurrencyExchange:
         if self.base_currency_to_use == "EUR":
             return self._get_dataframe()
 
-        data = self._get_dataframe()
-        data["EUR"] = 1 / data[self.base_currency_to_use]
-        data = data[self.currencies_to_watch + [self.base_currency_to_use]]
+        self._get_dataframe()
+        self.dataframe["EUR"] = 1 / self.dataframe[self.base_currency_to_use]
+        data = self.dataframe[self.currencies_to_watch + [self.base_currency_to_use]]
 
         for column in data.columns:
             if (column == self.base_currency_to_use) or (column == "EUR"):
                 pass
             else:
-                data[column] = data[column] / data[self.base_currency_to_use]
+                self.dataframe[column] = (
+                    self.dataframe[column] / self.dataframe[self.base_currency_to_use]
+                )
 
-        data.pop(self.base_currency_to_use)
+        self.dataframe.pop(self.base_currency_to_use)
+        self.dataframe = data
 
         return data
 
@@ -90,9 +95,10 @@ class CurrencyExchange:
             list: List of all avalulable currencies
         """
 
-        data = self._get_dataframe()
+        self._get_dataframe()
         available_currencies = [
-            currency if len(currency) == 3 else "" for currency in data.columns
+            currency if len(currency) == 3 else ""
+            for currency in self.dataframe.columns
         ][1:]
 
         return available_currencies
@@ -141,22 +147,11 @@ class CurrencyExchange:
 
         period_last_day = datetime.datetime.today()
 
-        ## TODO: IMPROVE LOGIC
         if period_timeframe == "month":
-            initial_day = datetime.datetime(
-                year=period_last_day.year,
-                month=period_last_day.month - period_amount,
-                day=period_last_day.day,
-            )
+            initial_day = period_last_day - relativedelta(months=period_amount)
         elif period_timeframe == "year":
-            initial_day = datetime.datetime(
-                year=period_last_day.year - period_amount,
-                month=period_last_day.month,
-                day=period_last_day.day,
-            )
+            initial_day = period_last_day - relativedelta(years=period_amount)
         elif period_timeframe == "day":
-            initial_day = datetime.datetime(
-                year=period_last_day.year,
-                month=period_last_day.month,
-                day=period_last_day.day - period_amount,
-            )
+            initial_day = period_last_day - relativedelta(days=period_amount)
+
+        data = data
