@@ -39,8 +39,9 @@ class CurrencyExchange:
         self.base_currency_to_use = base_currency_to_use
         self.currency_exchange = CurrencyConverter(currency_file=ECB_URL)
         self.dataframe = self._get_dataframe()
+        self.convert_data_to_currency()
 
-    def _get_dataframe(self) -> None:
+    def _get_dataframe(self) -> pd.DataFrame:
         """
         Function to get the latest DataFrame from the European Central Bank
 
@@ -52,9 +53,9 @@ class CurrencyExchange:
         data = pd.read_csv(file_path, compression="zip", index_col=0)
         data.pop(data.columns[-1])
 
-        self.dataframe = data
+        return data
 
-    def convert_data_to_currency(self) -> pd.DataFrame:
+    def convert_data_to_currency(self) -> None:
         """
         This function will convert the Base Data file from "EUR" currency exchange rates
         into the desired currency
@@ -62,19 +63,17 @@ class CurrencyExchange:
         Args:
             target_currency (str): Currency to convert the data to.
                 Examples are "USD", "AUD"
-
-        Returns:
-            pd.DataFrame: Converted DataFrame
         """
 
         if self.base_currency_to_use == "EUR":
             return self._get_dataframe()
 
-        self._get_dataframe()
         self.dataframe["EUR"] = 1 / self.dataframe[self.base_currency_to_use]
-        data = self.dataframe[self.currencies_to_watch + [self.base_currency_to_use]]
+        self.dataframe = self.dataframe[
+            self.currencies_to_watch + [self.base_currency_to_use]
+        ]
 
-        for column in data.columns:
+        for column in self.dataframe.columns:
             if (column == self.base_currency_to_use) or (column == "EUR"):
                 pass
             else:
@@ -83,9 +82,6 @@ class CurrencyExchange:
                 )
 
         self.dataframe.pop(self.base_currency_to_use)
-        self.dataframe = data
-
-        return data
 
     def get_available_currency_rates(self) -> list:
         """
@@ -95,7 +91,6 @@ class CurrencyExchange:
             list: List of all avalulable currencies
         """
 
-        self._get_dataframe()
         available_currencies = [
             currency if len(currency) == 3 else ""
             for currency in self.dataframe.columns
@@ -128,7 +123,11 @@ class CurrencyExchange:
         )
         print(amount_converted)
 
-    def plot_period(self, period_amount: int = 1, period_timeframe: str = "month"):
+    def plot_period(
+        self,
+        period_amount: Optional[int] = 1,
+        period_timeframe: Optional[str] = "month",
+    ) -> None:
         """
         Function to plot the last period of exchange rates
         This image can be attached to an email or used for analysis
@@ -145,6 +144,24 @@ class CurrencyExchange:
 
         """
 
+        filtered_dataframe = self.filter_period(
+            period_amount=period_amount, period_timeframe=period_timeframe
+        )
+
+    def filter_period(
+        self,
+        period_amount: Optional[int] = 1,
+        period_timeframe: Optional[str] = "month",
+    ) -> pd.DataFrame:
+        """_summary_
+
+        Args:
+            period_amount (Optional[int], optional): _description_. Defaults to 1.
+            period_timeframe (Optional[str], optional): _description_. Defaults to "month".
+
+        Returns:
+            pd.DataFrame: _description_
+        """
         period_last_day = datetime.datetime.today()
 
         if period_timeframe == "month":
@@ -154,4 +171,19 @@ class CurrencyExchange:
         elif period_timeframe == "day":
             initial_day = period_last_day - relativedelta(days=period_amount)
 
-        data = data
+        filtered_dataframe = self.dataframe.reset_index()
+        filtered_dataframe["Date"] = pd.to_datetime(filtered_dataframe["Date"])
+
+        filtered_dataframe = filtered_dataframe[
+            (filtered_dataframe["Date"] >= initial_day)
+            & (filtered_dataframe["Date"] <= period_last_day)
+        ]
+
+        return filtered_dataframe
+
+
+cr = CurrencyExchange(
+    currencies_to_watch=["BRL", "EUR", "GBP"], base_currency_to_use="AUD"
+)
+
+cr.plot_period(period_amount=3)
