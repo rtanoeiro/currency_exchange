@@ -2,7 +2,9 @@
 
 from urllib.request import urlretrieve
 
+import datetime
 import pandas as pd
+from typing import Optional
 from currency_converter import ECB_URL, CurrencyConverter
 
 
@@ -95,7 +97,13 @@ class CurrencyExchange:
 
         return available_currencies
 
-    def convert_into(self, currency: str, amount: float) -> None:
+    def convert_amount(
+        self,
+        amount: float,
+        base_currency: str,
+        target_currency: str,
+        date: Optional[datetime.date] = None,
+    ) -> None:
         """
         This function will convert the amount
         on the default currency into the desired one
@@ -107,13 +115,48 @@ class CurrencyExchange:
         """
 
         amount_converted = self.currency_exchange.convert(
-            base_cur=self.base_currency_to_use, dest_cur=currency, amount=amount
+            amount=amount,
+            currency=base_currency,
+            new_currency=target_currency,
+            date=date,
         )
         print(amount_converted)
 
+    def plot_period(self, period_amount: int = 1, period_timeframe: str = "month"):
+        """
+        Function to plot the last period of exchange rates
+        This image can be attached to an email or used for analysis
 
-currency_exchange = CurrencyExchange(
-    currencies_to_watch=["BRL", "EUR", "GBP"], base_currency_to_use="AUD"
-)
+        Acceptable values on the period_timeframe parameter are:
+        year, month, day
 
-currency_exchange.convert_data_to_currency()
+        The timeframe and period can be adjusted and
+        Args:
+        period_amount (int): Amount of timeframe to go back from current day.
+            Defaults to  1
+        period_timeframe (str): Timeframe to go back from today.
+            Defaults to "month"
+
+        """
+
+        period_last_day = datetime.datetime.today()
+
+        ## TODO: IMPROVE LOGIC
+        if period_timeframe == "month":
+            initial_day = datetime.datetime(
+                year=period_last_day.year,
+                month=period_last_day.month - period_amount,
+                day=period_last_day.day,
+            )
+        elif period_timeframe == "year":
+            initial_day = datetime.datetime(
+                year=period_last_day.year - period_amount,
+                month=period_last_day.month,
+                day=period_last_day.day,
+            )
+        elif period_timeframe == "day":
+            initial_day = datetime.datetime(
+                year=period_last_day.year,
+                month=period_last_day.month,
+                day=period_last_day.day - period_amount,
+            )
