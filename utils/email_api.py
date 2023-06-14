@@ -3,17 +3,14 @@
 import logging
 import os
 import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.audio import MIMEAudio
-from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
-from email.mime.nonmultipart import MIMENonMultipart
-from typing import List, Optional, Union
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from typing import List, Optional
 
 import pandas as pd
 
 from .email_addresses import EMAILS
-from .html_messages import HTML_MESSAGES
 
 SMTP_SERVER: str = os.environ["SMTP_SERVER"]
 if SMTP_SERVER is None:
@@ -23,9 +20,9 @@ SMTP_USERNAME: str = os.environ["SMTP_USERNAME"]
 if SMTP_USERNAME is None:
     raise ValueError("SMTP_USERNAME not found in environment variables")
 
-APP_PASSWORD: str = os.environ["APP_PASSWORD"]
-if APP_PASSWORD is None:
-    raise ValueError("APP_PASSWORD not found in environment variables")
+SMTP_PASSWORD: str = os.environ["SMTP_PASSWORD"]
+if SMTP_PASSWORD is None:
+    raise ValueError("SMTP_PASSWORD not found in environment variables")
 
 
 class Email:
@@ -40,141 +37,94 @@ class Email:
         cc_addresses: Optional[List[str]] = None,
     ) -> None:
         """
-        Each Email object will represent a MIMEMultipart object.
-        So for each different email, the class will be called.
+        Each Email object will represent a MIMEMultipart object. Therefore a different
+        email.
+
+        As each different email, it will need to receive the following parameters:
+
+        INPUTS
+        ------
+            to_address (List[str]): Addresses that will receive the email
+            subject (str): Subject of email
+            cc_addresses (Optional[List[str]]): List of addresses to be cced.
+                Defaults to None.
         """
+
         self.message = MIMEMultipart()
         self.smtp_server = SMTP_SERVER
         self.smtp_username = SMTP_USERNAME
+        self.smtp_password = SMTP_PASSWORD
+        self.default_sender = EMAILS["ANALYTICS_EMAIL"]
         self.to_address = to_address
-        self.app_password = APP_PASSWORD
 
-        self.message["From"] = EMAILS["RAMON_EMAIL"]
+        self.message["From"] = self.default_sender
         self.message["To"] = ", ".join(to_address)
         self.message["Subject"] = subject
         if cc_addresses:
             self.message["Cc"] = ", ".join(cc_addresses)
 
-    # TODO: Check if function can be removed. We can only have different methods
-    # To add messages, text, images to an MIMEMultipart object, and then call
-    # send email.
-    def send_email_without_attachment(
+    def add_dataframe_attachment(
         self,
-        email_message: Optional[str] = HTML_MESSAGES["DEFAULT_MESSAGE"],
+        attachment_name: str,
+        attachment_dataframe: pd.DataFrame,
     ):
         """
-        Function to send an email without an attachment
+        This function will be used to add Dataframes as csv files to an email.
+        For a better understanding of attachment types, please visit the following link:
+        https://docs.python.org/3/library/email.mime.html
+
+        We'll deal with dataframe objects only to avoid writing reports into files.
 
         Args:
-            email_message (Optional[str], optional): _description_. Defaults to HTML_MESSAGES["DEFAULT_MESSAGE"].
-        """
-        if email_message:
-            self.message.attach(MIMEText(email_message, "html"))
-
-        self.send_email()
-
-    def send_email_with_attachments(
-        self,
-        report_name: str,
-        attachment_df: pd.DataFrame,
-        email_message: Optional[str] = HTML_MESSAGES["DEFAULT_MESSAGE"],
-    ) -> None:
-        """
-        Function used to send an email with attachment.
-
-        INPUTS
-        ------
-            receiver (str): email of receiver. Must be an email from an environment variable.
-            subject (str): subject of the email.
-            report_name (str): Name of the report to appear on the email.
-            attachment_path (str): Path to the attachment file.
-            cc_emails (Optional[List[str]], optional): CCed emails to receive report.
-                Defaults to None.
+            attachment_name (str): Name of the attachment on the email
+            attachment_dataframe (pd.DataFrame): DataFrame object to be attached.
+            attachment_object (bool): Python object to be attached. Defaults to False
         """
 
-        if email_message:
-            self.message.attach(MIMEText(email_message, "html"))
+        if not isinstance(attachment_dataframe, pd.DataFrame):
+            raise ValueError("Object passed is not a DataFrame")
 
-        attachment = self.get_df_attachment(
-            attachment_df=attachment_df, report_name=report_name
+        string_report = attachment_dataframe.to_csv(index=False)
+        attachment = MIMEText(string_report, "csv")
+        attachment.add_header(
+            "Content-Disposition", "attachment", filename=attachment_name
         )
         self.message.attach(attachment)
 
-        self.send_email()
-
-    def get_df_attachment(
-        self, attachment_df: pd.DataFrame, report_name: str
-    ) -> MIMEText:
+    # TODO: Modify to image binary instead of path
+    def add_image_attachment(self, image_path: str, image_name: str) -> None:
         """
-        This function will be used to attach a Dataframe into the email.
-
-        INPUTS
-        ------
-            attachment_df (pd.DataFrame): The DataFrame to be attached
-            report_name (str): Name of report to be attached
-
-        OUTPUTS
-        -------
-            MIMEText: MIMEText object with the DataFrame as a string attached
-        """
-
-        string_report = attachment_df.to_csv(index=False)
-        attachment = MIMEText(string_report, "csv")
-        attachment.add_header(
-            "Content-Disposition", f"attachment; filename= {report_name}"
-        )
-
-        return attachment
-
-    def add_attachment(
-        self,
-        attachment_type: str,
-        attachment_path: Optional[str] = None,
-    ):
-        """
-        This function will be used to add any known attachments to the message.
-        Any new attachment types can be further added on the logic
+        Function to add an image to the email.
+        In case a report needs an image to stakeholders
 
         Args:
-            attachment (MIMENonMultipart): _description_
-            attchment_type (str): Attachment type to be added. Values can be:
-                Application (still on dev), Audio, Image, Text (DataFrame),
-                all are subclasses from MIMENonMultipart
-            attachment_path (str): Path to attachment. If attachment is already in bytes
-                format, it does not need to be called. If attachment is a file, then the
-                parameter must be set.
+            image_path (str): Path to image file
+            image_name (str): Name of the image file
         """
-        attachment_mapping = {
-            # "Application": ValueError("Attachment type still on the work"),
-            "Audio": MIMEAudio,
-            "Image": MIMEImage,
-            "Text": MIMEText,
-        }
+        with open(image_path, "rb") as image_file:
+            binary_image = image_file.read()
+            image = MIMEImage(binary_image, "png")
+            image.add_header("Content-Disposition", "attachment", filename=image_name)
+            self.message.attach(image)
 
-        if attachment_type not in attachment_mapping:
-            raise ValueError(f"Invalid attachment type: {attachment_type}")
+    def add_email_text(self, email_text: str) -> None:
+        """
+        Function to add text to the body of the email.
 
-        if attachment_path:
-            with open(attachment_path, "rb") as file:
-                binary_file = file.read()
-                attachment_class = attachment_mapping[attachment_type]
-                self.message.attach(attachment_class(binary_file))
+        Args:
+            email_text (str): Text to be added to the body of the email.
+        """
+        self.message.attach(MIMEText(email_text, "html"))
 
     def send_email(self) -> None:
         """
-        Separate function to send email.
-
-        INPUTS
-        ------
-            receiver (str): receiver email address.
+        Separate function to send constructed email object.
         """
         with smtplib.SMTP(self.smtp_server, 587) as server:
             server.starttls()
-            server.login(self.smtp_username, self.app_password)
+            server.login(self.smtp_username, self.smtp_password)
             failed_emails = server.sendmail(
-                from_addr=EMAILS["RAMON_EMAIL"],
-                to_addrs=self.to_address,
-                msg=self.message.as_string(),
+                self.default_sender, self.to_address, self.message.as_string()
             )
 
         if len(failed_emails) == 0:
